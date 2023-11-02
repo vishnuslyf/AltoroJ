@@ -15,6 +15,8 @@ on:
 
 permissions:
   contents: read
+schedule:
+  cron:'0 0 * * *'
 
 jobs:
   build:
@@ -28,8 +30,29 @@ jobs:
       with:
         java-version: '8'
         distribution: 'dragonwell'
+      # Because this example is building a Gradle project, it needs to happen after setting up Java
+    - name: Create certificate
+      run: cat <<< "${{secrets.BASE_64_CERTIFICATE_CONTENT}}" > my-cert.pem
     - name: Build with Gradle
       uses: gradle/gradle-build-action@bd5760595778326ba7f1441bcf7e88b49de61a25 # v2.6.0
       with:
         gradle-version: 6.5
         arguments: build
+    - name: Create Black Duck Policy
+      env:
+        NODE_EXTRA_CA_CERTS: ${{ secrets.LOCAL_CA_CERT_PATH }}
+      uses: blackducksoftware/create-policy-action@v0.0.1
+      with:
+        blackduck-url: ${{ secrets.BLACKDUCK_URL }}
+        blackduck-api-token: ${{ secrets.BLACKDUCK_API_TOKEN }}
+        policy-name: 'My Black Duck Policy For GitHub Actions'
+        no-fail-if-policy-exists: true
+    - name: Detect Rapid Scan Action
+      uses: synopsys-sig/detect-action@v0.3.4       
+      env:
+        NODE_EXTRA_CA_CERTS: ./my-cert.pem
+      with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          detect-version: 7.9.0
+          blackduck-url: ${{ secrets.BLACKDUCK_URL }}
+          blackduck-api-token: ${{ secrets.BLACKDUCK_API_TOKEN }}
